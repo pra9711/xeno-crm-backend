@@ -73,9 +73,11 @@ This robust backend is built with **Node.js**, **Express**, and **TypeScript**, 
 
 ## 🏗️ Architecture Diagram
 
-*(This section is reserved for the architecture diagram.)*
+
 
 <br/>
+<img width="3840" height="2390" alt="Untitled diagram _ Mermaid Chart-2025-09-15-191632" src="https://github.com/user-attachments/assets/4b60cb12-a935-4d4f-bc2d-5c1a2fc5c217" />
+
 <br/>
 
 ---
