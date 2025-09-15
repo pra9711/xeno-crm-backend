@@ -82,6 +82,12 @@ This robust backend is built with **Node.js**, **Express**, and **TypeScript**, 
 
 ---
 
+## 🏗️ ER Diagram
+<img width="3840" height="2996" alt="Untitled diagram _ Mermaid Chart-2025-09-15-192326" src="https://github.com/user-attachments/assets/26649bf2-fdd5-4406-bcbd-63698a695a34" />
+
+
+---
+
 ## 🚀 Local Setup Instructions
 
 Follow these steps to get the backend server running on your local machine.
