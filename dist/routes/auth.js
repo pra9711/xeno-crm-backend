@@ -26,7 +26,7 @@ const registerLimiter = (0, express_rate_limit_1.default)({
 const authCookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/',
 };
@@ -40,7 +40,7 @@ router.get('/google', (req, res) => {
     const stateCookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 5 * 60 * 1000,
         path: '/',
     };
@@ -101,16 +101,53 @@ router.get('/google/callback', async (req, res) => {
             });
         }
         const token = (0, auth_1.generateToken)(user.id);
-        const cookieOptions = {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        };
-        res.cookie('auth_token', token, cookieOptions);
+        const isProduction = process.env.NODE_ENV === 'production';
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        if (String(req.query.popup || '') === '1') {
-            const html = `<!doctype html>
+        if (isProduction) {
+            const redirectUrl = String(req.query.popup || '') === '1'
+                ? `${frontendUrl}/auth/popup-complete?token=${encodeURIComponent(token)}`
+                : `${frontendUrl}/auth/callback?token=${encodeURIComponent(token)}`;
+            if (String(req.query.popup || '') === '1') {
+                const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>OAuth Complete</title>
+  </head>
+  <body>
+    <script>
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ 
+            type: 'oauth-popup', 
+            success: true, 
+            token: token 
+          }, window.location.origin || '*');
+        }
+      } catch (e) { /* ignore */ }
+      setTimeout(() => { try { window.close(); } catch(e){} }, 300);
+    </script>
+    <div style="font-family:system-ui, Arial; padding:20px; text-align:center;">Authentication complete — you can close this window.</div>
+  </body>
+</html>`;
+                res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                res.status(200).send(html);
+                return;
+            }
+            return res.redirect(redirectUrl);
+        }
+        else {
+            const cookieOptions = {
+                httpOnly: true,
+                secure: false,
+                sameSite: 'lax',
+                maxAge: 7 * 24 * 60 * 60 * 1000
+            };
+            res.cookie('auth_token', token, cookieOptions);
+            if (String(req.query.popup || '') === '1') {
+                const html = `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -129,11 +166,12 @@ router.get('/google/callback', async (req, res) => {
     <div style="font-family:system-ui, Arial; padding:20px; text-align:center;">Authentication complete — you can close this window.</div>
   </body>
 </html>`;
-            res.setHeader('Content-Type', 'text/html; charset=utf-8');
-            res.status(200).send(html);
-            return;
+                res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                res.status(200).send(html);
+                return;
+            }
+            return res.redirect(`${frontendUrl}/dashboard`);
         }
-        return res.redirect(`${frontendUrl}/dashboard`);
     }
     catch (error) {
         console.error('Google OAuth error:', error);
@@ -169,14 +207,27 @@ router.post('/register', registerLimiter, async (req, res) => {
         const createData = { email, name, avatar: '', googleId: null, passwordHash };
         user = await prisma_1.default.user.create({ data: createData });
         const token = (0, auth_1.generateToken)(user.id);
-        res.cookie('auth_token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            path: '/',
-        });
-        return res.json({ success: true, data: { id: user.id, email: user.email, name: user.name } });
+        if (process.env.NODE_ENV === 'production') {
+            return res.json({
+                success: true,
+                data: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    token: token
+                }
+            });
+        }
+        else {
+            res.cookie('auth_token', token, {
+                httpOnly: true,
+                secure: false,
+                sameSite: 'lax',
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+                path: '/',
+            });
+            return res.json({ success: true, data: { id: user.id, email: user.email, name: user.name } });
+        }
     }
     catch (err) {
         console.error('Register error:', err && err.stack ? err.stack : err);

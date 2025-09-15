@@ -136,26 +136,65 @@ router.get('/google/callback', async (req, res): Promise<void> => {
     // Generate JWT token
     const token = generateToken(user.id)
 
-    // Set auth cookie (frontend reads 'auth_token' cookie)
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      // For cross-domain, use 'none' in production, 'lax' in development
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    }
-
-    res.cookie('auth_token', token, cookieOptions)
-
-    // Redirect back to frontend. Token is set as an httpOnly cookie above.
+    // For production (cross-domain), include token in redirect URL
+    // For development (same-domain), use httpOnly cookie
+    const isProduction = process.env.NODE_ENV === 'production'
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
 
-    // If the OAuth flow was initiated from a popup (`?popup=1`), respond with
-    // a tiny HTML page that posts a message to `window.opener` so the opener
-    // can detect completion, then close the popup. This makes the popup
-    // flow deterministic for the frontend `openOAuthPopup` helper.
-    if (String(req.query.popup || '') === '1') {
-      const html = `<!doctype html>
+    if (isProduction) {
+      // Production: Pass token in URL for cross-domain compatibility
+      const redirectUrl = String(req.query.popup || '') === '1' 
+        ? `${frontendUrl}/auth/popup-complete?token=${encodeURIComponent(token)}`
+        : `${frontendUrl}/auth/callback?token=${encodeURIComponent(token)}`
+      
+      if (String(req.query.popup || '') === '1') {
+        const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>OAuth Complete</title>
+  </head>
+  <body>
+    <script>
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ 
+            type: 'oauth-popup', 
+            success: true, 
+            token: token 
+          }, window.location.origin || '*');
+        }
+      } catch (e) { /* ignore */ }
+      setTimeout(() => { try { window.close(); } catch(e){} }, 300);
+    </script>
+    <div style="font-family:system-ui, Arial; padding:20px; text-align:center;">Authentication complete — you can close this window.</div>
+  </body>
+</html>`
+        res.setHeader('Content-Type', 'text/html; charset=utf-8')
+        res.status(200).send(html)
+        return
+      }
+      
+      return res.redirect(redirectUrl)
+    } else {
+      // Development: Use httpOnly cookie
+      const cookieOptions = {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax' as const,
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      }
+
+      res.cookie('auth_token', token, cookieOptions)
+
+      // If the OAuth flow was initiated from a popup (`?popup=1`), respond with
+      // a tiny HTML page that posts a message to `window.opener` so the opener
+      // can detect completion, then close the popup. This makes the popup
+      // flow deterministic for the frontend `openOAuthPopup` helper.
+      if (String(req.query.popup || '') === '1') {
+        const html = `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -175,13 +214,14 @@ router.get('/google/callback', async (req, res): Promise<void> => {
   </body>
 </html>`
 
-  res.setHeader('Content-Type', 'text/html; charset=utf-8')
-  res.status(200).send(html)
-  return
-    }
+        res.setHeader('Content-Type', 'text/html; charset=utf-8')
+        res.status(200).send(html)
+        return
+      }
 
-    // Standard flow: redirect to dashboard after successful OAuth (frontend reads httpOnly cookie)
-    return res.redirect(`${frontendUrl}/dashboard`)
+      // Standard flow: redirect to dashboard after successful OAuth (frontend reads httpOnly cookie)
+      return res.redirect(`${frontendUrl}/dashboard`)
+    }
   } catch (error) {
     console.error('Google OAuth error:', error)
     res.status(500).json({ error: 'Authentication failed' })
@@ -230,15 +270,30 @@ router.post('/register', registerLimiter, async (req, res) => {
 
       const token = generateToken(user.id)
 
-      res.cookie('auth_token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: '/',
-      })
-
-      return res.json({ success: true, data: { id: user.id, email: user.email, name: user.name } })
+      // For production (cross-domain), return token in response
+      // For development (same-domain), use httpOnly cookie
+      if (process.env.NODE_ENV === 'production') {
+        return res.json({ 
+          success: true, 
+          data: { 
+            id: user.id, 
+            email: user.email, 
+            name: user.name,
+            token: token
+          }
+        })
+      } else {
+        // Development: Use httpOnly cookie
+        res.cookie('auth_token', token, {
+          httpOnly: true,
+          secure: false,
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+          path: '/',
+        })
+        
+        return res.json({ success: true, data: { id: user.id, email: user.email, name: user.name } })
+      }
     } catch (err) {
       console.error('Register error:', err && (err as Error).stack ? (err as Error).stack : err)
       return res.status(500).json({ success: false, error: 'Registration failed' })
