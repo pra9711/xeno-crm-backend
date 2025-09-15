@@ -93,7 +93,7 @@ Follow these steps to get the backend server running on your local machine.
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/pra9711/xeno-crm-backend.git
+git clone https://github.com/pra9711/xeno-crm-backend
 cd xeno-crm-backend
 ```
 
