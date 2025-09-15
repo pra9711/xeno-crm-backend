@@ -46,10 +46,10 @@ model Customer {
 
 model Order {
   id         String   @id @default(cuid())
-  items      Json     // Store order items as JSON array
-  total      Float    // Total order amount
+  items      Json     
+  total      Float    
   status     OrderStatus
-  notes      String?  // Optional order notes
+  notes      String?  
   customerId String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -64,7 +64,7 @@ model Campaign {
   id          String   @id @default(cuid())
   name        String
   description String?
-  rules       Json     // Store segmentation rules as JSON
+  rules       Json     
   audienceSize Int     @default(0)
   status      CampaignStatus @default(DRAFT)
   userId      String

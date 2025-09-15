@@ -234,6 +234,70 @@ router.post('/register', registerLimiter, async (req, res) => {
         return res.status(500).json({ success: false, error: 'Registration failed' });
     }
 });
+router.post('/login', registerLimiter, async (req, res) => {
+    try {
+        const { email, password } = req.body || {};
+        if (!email || !password) {
+            return res.status(400).json({ success: false, error: 'Email and password are required' });
+        }
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const user = await prisma_1.default.user.findUnique({
+            where: { email: normalizedEmail },
+            select: { id: true, email: true, name: true, avatar: true, passwordHash: true, googleId: true }
+        });
+        if (!user) {
+            return res.status(401).json({ success: false, error: 'Invalid email or password' });
+        }
+        if (user.googleId && !user.passwordHash) {
+            return res.status(400).json({
+                success: false,
+                error: 'This account uses Google login. Please use the "Sign in with Google" option.'
+            });
+        }
+        if (!user.passwordHash) {
+            return res.status(401).json({ success: false, error: 'Invalid email or password' });
+        }
+        const isValidPassword = await bcryptjs_1.default.compare(password, user.passwordHash);
+        if (!isValidPassword) {
+            return res.status(401).json({ success: false, error: 'Invalid email or password' });
+        }
+        const token = (0, auth_1.generateToken)(user.id);
+        if (process.env.NODE_ENV === 'production') {
+            return res.json({
+                success: true,
+                data: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    avatar: user.avatar,
+                    token: token
+                }
+            });
+        }
+        else {
+            res.cookie('auth_token', token, {
+                httpOnly: true,
+                secure: false,
+                sameSite: 'lax',
+                maxAge: 7 * 24 * 60 * 60 * 1000,
+                path: '/',
+            });
+            return res.json({
+                success: true,
+                data: {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    avatar: user.avatar
+                }
+            });
+        }
+    }
+    catch (err) {
+        console.error('Login error:', err && err.stack ? err.stack : err);
+        return res.status(500).json({ success: false, error: 'Login failed' });
+    }
+});
 router.get('/me', async (req, res) => {
     try {
         const token = (0, authHelpers_1.extractAuthToken)(req);

@@ -301,6 +301,88 @@ router.post('/register', registerLimiter, async (req, res) => {
   }
 )
 
+// Login endpoint (email / password)
+router.post('/login', registerLimiter, async (req, res) => {
+  try {
+    const { email, password } = req.body || {}
+
+    // Basic validation
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: 'Email and password are required' })
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase()
+
+    // Find user by email
+    const user = await prisma.user.findUnique({ 
+      where: { email: normalizedEmail },
+      select: { id: true, email: true, name: true, avatar: true, passwordHash: true, googleId: true }
+    })
+
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' })
+    }
+
+    // Check if this is a Google OAuth user (no password)
+    if (user.googleId && !user.passwordHash) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'This account uses Google login. Please use the "Sign in with Google" option.' 
+      })
+    }
+
+    // Verify password
+    if (!user.passwordHash) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' })
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash)
+    if (!isValidPassword) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' })
+    }
+
+    // Generate JWT token
+    const token = generateToken(user.id)
+
+    // For production (cross-domain), return token in response
+    // For development (same-domain), use httpOnly cookie
+    if (process.env.NODE_ENV === 'production') {
+      return res.json({ 
+        success: true, 
+        data: { 
+          id: user.id, 
+          email: user.email, 
+          name: user.name,
+          avatar: user.avatar,
+          token: token
+        }
+      })
+    } else {
+      // Development: Use httpOnly cookie
+      res.cookie('auth_token', token, {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/',
+      })
+      
+      return res.json({ 
+        success: true, 
+        data: { 
+          id: user.id, 
+          email: user.email, 
+          name: user.name,
+          avatar: user.avatar
+        }
+      })
+    }
+  } catch (err) {
+    console.error('Login error:', err && (err as Error).stack ? (err as Error).stack : err)
+    return res.status(500).json({ success: false, error: 'Login failed' })
+  }
+})
+
 // Get current user
 router.get('/me', async (req, res): Promise<void> => {
   try {
