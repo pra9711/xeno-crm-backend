@@ -7,7 +7,6 @@
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=2048 npx tsc",
     "build:render": "cross-env NODE_OPTIONS=--max-old-space-size=1536 npx tsc -p tsconfig.production.json --skipLibCheck --skipDefaultLibCheck",
     "postinstall": "prisma generate",
-    "prestart": "npm run build:render",
     "start": "node dist/index.js",
     "render-start": "node --max-old-space-size=512 dist/index.js",
     "db:generate": "prisma generate",

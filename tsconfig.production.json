@@ -5,13 +5,18 @@
     "declarationMap": false,
     "sourceMap": false,
     "incremental": false,
-    "composite": false
+    "composite": false,
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "noEmitOnError": false,
+    "isolatedModules": true
   },
   "exclude": [
     "node_modules",
     "dist",
     "**/*.test.ts",
     "**/*.spec.ts",
-    "prisma/seed.ts"
+    "prisma/seed.ts",
+    "**/*.d.ts"
   ]
 }
