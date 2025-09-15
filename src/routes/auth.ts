@@ -28,7 +28,7 @@ const registerLimiter = rateLimit({
 const authCookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   path: '/',
 }
@@ -52,7 +52,7 @@ router.get('/google', (req, res) => {
   const stateCookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
     maxAge: 5 * 60 * 1000, // 5 minutes
     path: '/',
   }
@@ -140,8 +140,8 @@ router.get('/google/callback', async (req, res): Promise<void> => {
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      // Allow top-level GET navigations (OAuth redirect) to include the cookie
-      sameSite: 'lax' as const,
+      // For cross-domain, use 'none' in production, 'lax' in development
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     }
 
